@@ -3,7 +3,8 @@ import CABR3
 
 p = parser.EPL('/Users/cx926/Desktop/CABR/data/1191/ABR-1191-4-analyzed.txt')
 
+abr = CABR3.ABR(path='/Users/cx926/Desktop/CABR/Super/', ParsingClass=parser.EPL)
+abr.write_thr_csv()
+abr.get_experiment()
 
-
-test = CABR3.experiment('/Users/cx926/Desktop/CABR/Super/')
-test.write_csv()
+abr.plot.threshold()
