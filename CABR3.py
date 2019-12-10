@@ -2,6 +2,11 @@ from parser import EPL
 import glob
 import os
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib
+from matplotlib.lines import Line2D
+import copy
+
 import itertools
 
 class experiment:
@@ -63,9 +68,10 @@ class experiment:
 
     @staticmethod
     def list_to_str(original):
+        co = copy.copy(original)
         new = []
-        while original:
-            new.append(str(original.pop(0)))
+        while co:
+            new.append(str(co.pop(0)))
         return new
 
     def get_experiment(self):
@@ -83,7 +89,7 @@ class ABR(experiment):
         # Need to do this to generate the experiment dict
         super().__init__(suppath=path, parser=ParsingClass)
 
-        self.plot = self.Plot(self.experiment_dict)
+        self.plot = self.Plot(self.experiment_dict, self.list_to_str)
 
     @staticmethod
     def _write_csvmat_to_file(file, csvmat):
@@ -150,7 +156,6 @@ class ABR(experiment):
                 csvmat.append(['Condition'] + [condition])
 
                 for animal in self.experiment_dict[condition]:
-                    print(animal)
 
                     for run in self.experiment_dict[condition][animal]:
 
@@ -210,9 +215,6 @@ class ABR(experiment):
                     freq.append(run.frequency)
                     threshold.append(run.threshold)
 
-                X = ["a", "b", "c", "d", "e", "f", "g", "h", "i"]
-                Y = [0, 1, 1, 0, 1, 2, 2, 0, 1]
-
                 threshold = [y for y, _ in sorted(zip(threshold, freq))]
 
                 freq.sort()
@@ -223,18 +225,139 @@ class ABR(experiment):
                 csvmat.append(freq)
                 csvmat.append(threshold)
 
-            print(csvmat)
             self._write_csvmat_to_file(file, csvmat)
             file.close()
 
     class Plot():
 
-        def __init__(self, experiment_dict):
+        def __init__(self, experiment_dict, l2s):
 
             self.experiment_dict = experiment_dict
+            self.list_to_string = l2s
+
+
+
+        def _mean(self, x, y):
+            """
+            Takes in a list of lists of differing sizes containing a possibly different lengths
+            and makes a flattened list of the mean
+
+            :param self:
+            :param data:
+            :return:
+            """
+            z = zip(x, y)
+
+            X = np.array([])
+
+
+            for a in x:
+                for i in a:
+                    if not np.any(X == i):
+                        X = np.append(X,i)
+
+            Y = copy.copy(X)
+
+            for index,val in enumerate(X):
+                m = 0 # mean
+                i = 0 # iteration
+                for a,b in zip(x,y):
+                    if len(a) != len(b):
+                        raise IndexError('X,Y dimmensions missmatch')
+
+                    if np.any(np.array(a) == val):
+                        m += np.array(b)[np.array(a) == val]
+                        i += 1
+
+                if i > 0:
+                    Y[index] = m/i
+                else:
+                    Y[index] = m
+
+
+            return X.tolist(), Y.tolist()
+
+        def _var(self, x:list, y:list):
+            """
+            Takes in a list of lists of differing sizes containing a possibly different lengths
+            and makes a flattened list of the mean
+
+            :param self:
+            :param data:
+            :return:
+            """
+
+            X, Y_mean = self._mean(x,y)
+
+            Y = np.array(copy.copy(X))
+
+            for index, val in enumerate(X):
+                m = 0  # mean
+                i = 0  # iteration
+                for a, b in zip(x, y):
+                    if np.any(np.array(a) == val):
+                        m += (np.array(b)[np.array(a) == val] - Y_mean[index])**2
+                        i += 1
+
+                if i > 1:
+                    Y[index] = m / (i-1)
+                elif i == 0 or i == 1:
+                    Y[index] = 0
+
+            return X, Y.tolist()
+
+        def _std(self,x,y):
+            X,Y = self._var(x,y)
+            for i,val in enumerate(Y):
+                Y[i] = val ** 0.5
+            return X,Y
 
         def threshold(self):
-            raise NotImplementedError
+
+            fig,ax = plt.subplots()
+            fig.set_size_inches(5,4)
+            ax.set_xscale('log')
+            legend_elements = []
+            for i,condition in enumerate(self.experiment_dict):
+
+                legend_elements.append(Line2D([0],[0],color='C'+str(i), lw=2, label=str(condition)))
+                THR = []
+                FREQ = []
+
+                for animal in self.experiment_dict[condition]:
+                    freq = []
+                    thr = []
+                    for run in self.experiment_dict[condition][animal]:
+                        freq.append(run.frequency)
+                        thr.append(run.threshold)
+                    thr = [y for y, _ in sorted(zip(thr, freq))]
+                    freq.sort()
+                    THR.append(thr)
+                    FREQ.append(freq)
+                    ax.plot(freq, thr, '.-', c='C'+str(i), alpha=0.1)
+
+                FREQ_mean,THR_mean = self._mean(FREQ,THR)
+                _,THR_variance = self._std(FREQ,THR)
+                plt.fill_between(FREQ_mean, np.array(THR_mean) - np.array(THR_variance),
+                                 np.array(THR_mean) + np.array(THR_variance), alpha = .2, color = 'C'+str(i))
+
+                ax.plot(FREQ_mean, THR_mean, '.-', c='C'+str(i), linewidth=2)
+
+
+
+            ax.set_xscale('log')
+            ax.set_xticks(FREQ_mean)
+            ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+            ax.get_xaxis().set_minor_formatter(matplotlib.ticker.NullFormatter())
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+            ax.ticklabel_format(style='plain')
+
+            ax.set_xlabel('Frequency (kHz)')
+            ax.set_ylabel('Threshold (dB)')
+            ax.legend(handles=legend_elements, loc='best')
+            plt.show()
+
 
         def agf(self):
             raise NotImplementedError
