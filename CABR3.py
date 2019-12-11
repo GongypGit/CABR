@@ -7,9 +7,8 @@ import matplotlib
 from matplotlib.lines import Line2D
 import copy
 
-import itertools
 
-class experiment:
+class Experiment:
 
     def __init__(self, suppath, file_regex='*-analyzed.txt', parser=EPL):
 
@@ -78,8 +77,7 @@ class experiment:
         return self.experiment_dict
 
 
-
-class ABR(experiment):
+class ABR(Experiment):
 
     def __init__(self, path, ParsingClass):
 
@@ -161,7 +159,7 @@ class ABR(experiment):
 
                         if f == run.frequency:
                             csvmat.append(['Animal'] + [str(run.id)])
-                            csvmat.append(['Level'] + self.list_to_str(run.level))
+                            csvmat.append(['Level'] + self.list_to_str(run.levels))
                             csvmat.append(['Amplitudes'] + self.list_to_str(run.amplitudes))
 
                 # What im doing here is finding the maximum length of sublists
@@ -228,16 +226,29 @@ class ABR(experiment):
             self._write_csvmat_to_file(file, csvmat)
             file.close()
 
-    class Plot():
+    class Plot:
 
         def __init__(self, experiment_dict, l2s):
 
             self.experiment_dict = experiment_dict
             self.list_to_string = l2s
 
+            FREQ = []
 
+            for i,condition in enumerate(self.experiment_dict):
+                for animal in self.experiment_dict[condition]:
+                    freq = []
+                    thr = []
+                    for run in self.experiment_dict[condition][animal]:
+                        freq.append(run.frequency)
+                        thr.append(run.threshold)
+                    FREQ.append(freq)
 
-        def _mean(self, x, y):
+            self.frequency_list, _ = self._mean(FREQ, FREQ)
+            self.frequency_list = sorted(self.frequency_list)
+
+        @staticmethod
+        def _mean(x: list, y: list):
             """
             Takes in a list of lists of differing sizes containing a possibly different lengths
             and makes a flattened list of the mean
@@ -247,9 +258,7 @@ class ABR(experiment):
             :return:
             """
             z = zip(x, y)
-
             X = np.array([])
-
 
             for a in x:
                 for i in a:
@@ -277,7 +286,7 @@ class ABR(experiment):
 
             return X.tolist(), Y.tolist()
 
-        def _var(self, x:list, y:list):
+        def _var(self, x: list, y: list):
             """
             Takes in a list of lists of differing sizes containing a possibly different lengths
             and makes a flattened list of the mean
@@ -306,42 +315,51 @@ class ABR(experiment):
 
             return X, Y.tolist()
 
-        def _std(self,x,y):
+        def _std(self, x: list, y: list):
             X,Y = self._var(x,y)
             for i,val in enumerate(Y):
                 Y[i] = val ** 0.5
             return X,Y
 
-        def threshold(self):
+        def threshold(self, errbar=False):
 
             fig,ax = plt.subplots()
             fig.set_size_inches(5,4)
             ax.set_xscale('log')
             legend_elements = []
-            for i,condition in enumerate(self.experiment_dict):
+
+            for i, condition in enumerate(self.experiment_dict):
 
                 legend_elements.append(Line2D([0],[0],color='C'+str(i), lw=2, label=str(condition)))
+
                 THR = []
                 FREQ = []
 
                 for animal in self.experiment_dict[condition]:
+
                     freq = []
                     thr = []
+
                     for run in self.experiment_dict[condition][animal]:
+
                         freq.append(run.frequency)
                         thr.append(run.threshold)
+
                     thr = [y for y, _ in sorted(zip(thr, freq))]
                     freq.sort()
                     THR.append(thr)
                     FREQ.append(freq)
                     ax.plot(freq, thr, '.-', c='C'+str(i), alpha=0.1)
 
-                FREQ_mean,THR_mean = self._mean(FREQ,THR)
-                _,THR_variance = self._std(FREQ,THR)
-                plt.fill_between(FREQ_mean, np.array(THR_mean) - np.array(THR_variance),
-                                 np.array(THR_mean) + np.array(THR_variance), alpha = .2, color = 'C'+str(i))
+                FREQ_mean, THR_mean = self._mean(FREQ, THR)
+                _, THR_variance = self._std(FREQ, THR)
 
-                ax.plot(FREQ_mean, THR_mean, '.-', c='C'+str(i), linewidth=2)
+                if errbar:
+                    ax.errorbar(FREQ_mean, THR_mean, yerr=THR_variance, c='C'+str(i), linewidth=2)
+                else:
+                    plt.fill_between(FREQ_mean, np.array(THR_mean) - np.array(THR_variance),
+                                     np.array(THR_mean) + np.array(THR_variance), alpha = .2, color = 'C'+str(i))
+                    plt.plot(FREQ_mean,THR_mean, '.-', c='C'+str(i))
 
 
 
@@ -352,14 +370,52 @@ class ABR(experiment):
             ax.spines['right'].set_visible(False)
             ax.spines['top'].set_visible(False)
             ax.ticklabel_format(style='plain')
-
             ax.set_xlabel('Frequency (kHz)')
             ax.set_ylabel('Threshold (dB)')
-            ax.legend(handles=legend_elements, loc='best')
+            ax.legend(handles=legend_elements, loc='best',frameon=False)
+            plt.title('Threshold')
             plt.show()
 
+        def agf(self, frequency=None, errbar=None):
 
-        def agf(self):
-            raise NotImplementedError
+            fig,ax = plt.subplots()
+            fig.set_size_inches(5,4)
+            ax.set_xscale('log')
+            legend_elements = []
+
+            for i, condition in enumerate(self.experiment_dict):
+
+                legend_elements.append(Line2D([0],[0],color='C'+str(i), lw=2, label=str(condition)))
+                lvl = []
+                amp = []
+
+                for animal in self.experiment_dict[condition]:
+                    for run in self.experiment_dict[condition][animal]:
+                        if np.array(run.frequency) == frequency:
+                            ax.plot(run.levels, run.amplitudes, '-', c='C'+str(i), alpha=0.1)
+                            amp.append(run.amplitudes)
+                            lvl.append(run.levels)
+
+                lvl_mean, amp_mean = self._mean(lvl, amp)
+                _, amp_variance = self._std(lvl, amp)
+
+                if errbar:
+                    ax.errorbar(lvl_mean, amp_mean, yerr=amp_variance, c='C' + str(i), linewidth=2)
+                else:
+                    plt.fill_between(lvl_mean, np.array(amp_mean) - np.array(amp_variance),
+                                     np.array(amp_mean) + np.array(amp_variance), alpha = .2, color = 'C'+str(i))
+                    ax.plot(lvl_mean, amp_mean, '.-', c='C' + str(i), linewidth=2)
 
 
+
+            plt.title('Amplitude Growth Function')
+            ax.set_xticks(lvl_mean)
+            ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+            ax.get_xaxis().set_minor_formatter(matplotlib.ticker.NullFormatter())
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+            ax.set_xlabel('Level (dB)')
+            ax.set_ylabel('N1P1 Amplidue')
+            ax.legend(handles=legend_elements, loc='best',frameon=False)
+
+            plt.show()
