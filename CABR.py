@@ -46,9 +46,15 @@ class Experiment:
 
                 for experiment in experiment_path_list:
 
+                    try:
+                        self.parser(experiment) # Sometimes the parser will fail. In this case just ignore it.
+                    except:
+                        continue
+
                     if not self.frequency:
                         # We need a list of frequencies later in the program.
                         # Sets freq list if it hasent been set yet
+
                         self.frequency.append(self.parser(experiment).frequency)
 
                     # Create a list of parsers classes containing data of each animal
@@ -67,6 +73,12 @@ class Experiment:
 
     @staticmethod
     def list_to_str(original):
+        """
+        Take in a list and return a list of strings of each object in list. [1,2,3,4] --> ['1', '2', '3', '4']
+
+        :param original:
+        :return:
+        """
         co = copy.copy(original)
         new = []
         while co:
@@ -79,14 +91,14 @@ class Experiment:
 
 class ABR(Experiment):
 
-    def __init__(self, path, ParsingClass):
+    def __init__(self, path, file_regex, ParsingClass):
 
         self.path = path
         self.parse = ParsingClass
 
 
         # Need to do this to generate the experiment dict
-        super().__init__(suppath=path, parser=ParsingClass)
+        super().__init__(suppath=path, file_regex= file_regex, parser=ParsingClass)
 
         self.plot = self.Plot(self.experiment_dict, self.list_to_str)
         self.write = self.Write(self.experiment_dict, self.list_to_str, self.frequency)
@@ -196,7 +208,7 @@ class ABR(Experiment):
                         freq.append(run.frequency)
                         threshold.append(run.threshold)
 
-                    threshold = [y for y, _ in sorted(zip(threshold, freq))]
+                    threshold = [y for x, y in sorted(zip(freq, threshold))]
 
                     freq.sort()
 
@@ -212,7 +224,6 @@ class ABR(Experiment):
     class Plot:
 
         def __init__(self, experiment_dict, l2s):
-
             self.experiment_dict = experiment_dict
             self.list_to_string = l2s
 
@@ -223,24 +234,30 @@ class ABR(Experiment):
                     freq = []
                     thr = []
                     for run in self.experiment_dict[condition][animal]:
-                        freq.append(run.frequency)
-                        thr.append(run.threshold)
+                        if run.threshold is not None:
+                            freq.append(run.frequency)
+                            thr.append(run.threshold)
+
                     FREQ.append(freq)
 
-            self.frequency_list, _ = self._mean(FREQ, FREQ)
+            # self.frequency_list, _ = self._mean(FREQ, FREQ) # WHY?
+            self.frequency_list = FREQ
             self.frequency_list = sorted(self.frequency_list)
 
         @staticmethod
         def _mean(x: list, y: list):
             """
-            Takes in a list of lists of differing sizes containing a possibly different lengths
-            and makes a flattened list of the mean
+            This function takes in two lists of lists, x,y and creates a new list X of all the unique values in x, and
+            Y of the mean value of all of unique values in x.
 
-            :param self:
-            :param data:
+            e.g. x = [[1,2,3],[4,2,3]] y = [[11,12,13,][14,15,16]]
+            -> X = [1,2,3,4] Y = [1, 17/2, 19/2, 14]
+
+            :param x: list of lists that may have differnt values
+            :param y: data you want averaged
             :return:
             """
-            z = zip(x, y)
+
             X = np.array([])
 
             for a in x:
@@ -250,6 +267,7 @@ class ABR(Experiment):
 
             Y = copy.copy(X)
 
+
             for index,val in enumerate(X):
                 m = 0 # mean
                 i = 0 # iteration
@@ -258,7 +276,8 @@ class ABR(Experiment):
                         raise IndexError('X,Y dimmensions missmatch')
 
                     if np.any(np.array(a) == val):
-                        m += np.array(b)[np.array(a) == val]
+
+                        m += np.array(b)[np.array(a) == val].mean()
                         i += 1
 
                 if i > 0:
@@ -267,20 +286,26 @@ class ABR(Experiment):
                     Y[index] = m
 
 
-            return X.tolist(), Y.tolist()
+            X = X.tolist()
+            Y = Y.tolist()
+
+            Y = [y for x, y in sorted(zip(X, Y))]
+            X = sorted(X)
+
+            return X, Y
 
         def _var(self, x: list, y: list):
             """
-            Takes in a list of lists of differing sizes containing a possibly different lengths
-            and makes a flattened list of the mean
+            Does the same as _mean, but for variance.
 
             :param self:
             :param data:
             :return:
             """
+            if np.any(np.array(x) == None) or np.any(np.array(y) == None):
+                raise ValueError('List cannot conatin None Value\nx: ' + str(x) +'\ny: ' + str(y))
 
             X, Y_mean = self._mean(x,y)
-
             Y = np.array(copy.copy(X))
 
             for index, val in enumerate(X):
@@ -288,7 +313,7 @@ class ABR(Experiment):
                 i = 0  # iteration
                 for a, b in zip(x, y):
                     if np.any(np.array(a) == val):
-                        m += (np.array(b)[np.array(a) == val] - Y_mean[index])**2
+                        m += (np.array(b)[np.array(a) == val].mean() - Y_mean[index])**2
                         i += 1
 
                 if i > 1:
@@ -299,19 +324,33 @@ class ABR(Experiment):
             return X, Y.tolist()
 
         def _std(self, x: list, y: list):
+            """
+            Does the same thing as _var but for standard deviataion.
+
+            :param x:
+            :param y:
+            :return:
+            """
             X,Y = self._var(x,y)
             for i,val in enumerate(Y):
                 Y[i] = val ** 0.5
             return X,Y
 
-        def threshold(self, errbar=False):
+        def threshold(self, errbar=False, seperate_conditions=False):
 
-            fig,ax = plt.subplots()
-            fig.set_size_inches(5,4)
-            ax.set_xscale('log')
-            legend_elements = []
+            if not seperate_conditions:
+
+                fig,ax = plt.subplots()
+                fig.set_size_inches(5,4)
+                ax.set_xscale('log')
+                legend_elements = []
 
             for i, condition in enumerate(self.experiment_dict):
+                if seperate_conditions:
+                    fig, ax = plt.subplots()
+                    fig.set_size_inches(5, 4)
+                    ax.set_xscale('log')
+                    legend_elements = []
 
                 legend_elements.append(Line2D([0],[0],color='C'+str(i), lw=2, label=str(condition)))
 
@@ -325,14 +364,19 @@ class ABR(Experiment):
 
                     for run in self.experiment_dict[condition][animal]:
 
-                        freq.append(run.frequency)
-                        thr.append(run.threshold)
+                        if run.threshold is not None:
+                            freq.append(run.frequency)
+                            thr.append(run.threshold)
+                        else:
+                            run.save_figure('/Users/cx926/Desktop/CABR/ChunjieBadABR/')
 
-                    thr = [y for y, _ in sorted(zip(thr, freq))]
+                    thr = [y for x, y in sorted(zip(freq, thr))] # sorts thr for values in freq
+
                     freq.sort()
                     THR.append(thr)
                     FREQ.append(freq)
                     ax.plot(freq, thr, '.-', c='C'+str(i), alpha=0.1)
+
 
                 FREQ_mean, THR_mean = self._mean(FREQ, THR)
                 _, THR_variance = self._std(FREQ, THR)
@@ -344,20 +388,33 @@ class ABR(Experiment):
                                      np.array(THR_mean) + np.array(THR_variance), alpha = .2, color = 'C'+str(i))
                     plt.plot(FREQ_mean,THR_mean, '.-', c='C'+str(i))
 
+                if seperate_conditions:
+                    ax.set_xscale('log')
+                    ax.set_xticks(FREQ_mean)
+                    ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+                    ax.get_xaxis().set_minor_formatter(matplotlib.ticker.NullFormatter())
+                    ax.spines['right'].set_visible(False)
+                    ax.spines['top'].set_visible(False)
+                    ax.ticklabel_format(style='plain')
+                    ax.set_xlabel('Frequency (kHz)')
+                    ax.set_ylabel('Threshold (dB)')
+                    ax.legend(handles=legend_elements, loc='best', frameon=False)
+                    plt.title('Threshold')
+                    plt.show()
 
-
-            ax.set_xscale('log')
-            ax.set_xticks(FREQ_mean)
-            ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
-            ax.get_xaxis().set_minor_formatter(matplotlib.ticker.NullFormatter())
-            ax.spines['right'].set_visible(False)
-            ax.spines['top'].set_visible(False)
-            ax.ticklabel_format(style='plain')
-            ax.set_xlabel('Frequency (kHz)')
-            ax.set_ylabel('Threshold (dB)')
-            ax.legend(handles=legend_elements, loc='best',frameon=False)
-            plt.title('Threshold')
-            plt.show()
+            if not seperate_conditions:
+                ax.set_xscale('log')
+                ax.set_xticks(FREQ_mean)
+                ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+                ax.get_xaxis().set_minor_formatter(matplotlib.ticker.NullFormatter())
+                ax.spines['right'].set_visible(False)
+                ax.spines['top'].set_visible(False)
+                ax.ticklabel_format(style='plain')
+                ax.set_xlabel('Frequency (kHz)')
+                ax.set_ylabel('Threshold (dB)')
+                ax.legend(handles=legend_elements, loc='best',frameon=False)
+                plt.title('Threshold')
+                plt.show()
 
         def agf(self, frequency=None, errbar=None):
 

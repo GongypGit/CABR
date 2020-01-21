@@ -1,0 +1,10 @@
+Threshold (dB SPL): None
+Frequency (kHz): 32.00
+Filter history (zpk format):
+Pass 0 -- z: array([ 1.+0.j, -1.+0.j]), p: array([ 0.95015586+0.j, -0.5033507 +0.j]), k: 0.7391308082355769
+NOTE: Negative latencies indicate no peak
+Level	0.3msec Avg	0.3msec StDev	P1 Latency	P1 Amplitude	N1 Latency	N1 Amplitude	P2 Latency	P2 Amplitude	N2 Latency	N2 Amplitude	P3 Latency	P3 Amplitude	N3 Latency	N3 Amplitude	P4 Latency	P4 Amplitude	N4 Latency	N4 Amplitude	P5 Latency	P5 Amplitude	N5 Latency	N5 Amplitude	
+90.00	-0.049888	0.022690	-1.20	0.08	-1.56	-0.06	-1.80	0.05	-2.04	-0.02	-2.16	0.04	-2.36	-0.06	-2.76	0.01	-3.04	-0.05	-3.56	0.06	-5.52	-0.08
+80.00	-0.006250	0.009164	-1.20	0.01	-1.20	0.01	-1.80	0.07	-2.00	-0.01	-2.44	0.05	-2.44	0.05	-3.00	0.03	-3.32	-0.03	-3.48	0.01	-5.52	0.06
+70.00	-0.046799	0.022746	-1.08	0.04	-1.44	-0.04	-1.72	0.06	-2.04	-0.01	-2.80	0.07	-2.80	0.07	-2.80	0.07	-3.44	-0.04	-3.80	0.05	-5.44	-0.03
+60.00	0.026760	0.009290	-1.32	0.10	-1.76	-0.02	-1.96	0.03	-2.08	-0.03	-2.64	0.06	-2.64	0.06	-2.64	0.06	-3.12	-0.05	-3.80	0.04	-5.20	-0.07
