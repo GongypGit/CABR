@@ -30,7 +30,7 @@ abr.write.agf()
 abr.plot.threshold()
 abr.plot.agf()
 ```
-**parser** is an included library which is used to import the data files. By default it resorts to the analyzed ABR formatting of the Eaton Peabody Laboratories of Mass Eye and Ear. 
+**parser** is an included library which is used to import the data files. By default it uses the analyzed ABR formatting of the Eaton Peabody Laboratories of Mass Eye and Ear. 
 
 CABR can accept any custom parsing class as long as it has properties:
 ```
